@@ -45,9 +45,11 @@ export const SearchOverlay: React.FC<{ isOpen: boolean; onClose: () => void }> =
       setExpandedId(null);
       setTimeout(() => inputRef.current?.focus(), 100);
       
-      if (comments.length === 0 && !error) {
+      if (comments.length === 0) {
         setLoading(true);
-        fetch(import.meta.env.VITE_API_COMMENTS_URL)
+        setError(null);
+        const controller = new AbortController();
+        fetch(import.meta.env.VITE_API_COMMENTS_URL, { signal: controller.signal })
           .then(res => {
             if (!res.ok) throw new Error('Failed to fetch comments');
             return res.json();
@@ -57,9 +59,12 @@ export const SearchOverlay: React.FC<{ isOpen: boolean; onClose: () => void }> =
             setLoading(false);
           })
           .catch(err => {
-            setError(err.message || 'Failed to load comments');
-            setLoading(false);
+            if (err.name !== 'AbortError') {
+              setError(err.message || 'Failed to load comments');
+              setLoading(false);
+            }
           });
+        return () => controller.abort();
       }
     }
   }, [isOpen]);

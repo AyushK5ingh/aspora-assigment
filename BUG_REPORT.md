@@ -138,3 +138,19 @@
 - **Root Cause**: The button lacked a "Loading" or "Disabled" state while the `Promise.allSettled` block was awaiting fulfillment.
 - **Fix**: Introduced an `isBatching` React state variable. The button now dynamically changes its label to **"Saving all..."** and disables itself entirely until the successful/error toast is delivered, preventing race conditions and redundant execution.
 
+## 29. Search Comments Error State Persistence Bug
+- **Visible Symptom**: If the JSONPlaceholder API fetch fails on first opening the Search overlay, closing and reopening the overlay shows the error message indefinitely. The fetch never retries, and there's no way to recover without refreshing the entire page.
+- **Root Cause**: The fetch logic in `SearchOverlay.tsx` checked `if (comments.length === 0 && !error)` before attempting to fetch. Once `error` was set during a failed fetch attempt, this condition permanently blocked all subsequent fetch attempts, even after closing and reopening the overlay.
+- **Fix**: Removed the `&& !error` check from the fetch condition. Now it only checks `if (comments.length === 0)`. Additionally, `setError(null)` is called immediately before the fetch attempt, clearing any prior error state. This allows users to recover from transient network failures by simply closing and reopening the search overlay.
+
+## 30. Search Comments Stale State Updates on Unmount
+- **Visible Symptom**: If the user closes the Search overlay while a network request is in flight, React may warn "Can't perform a React state update on an unmounted component" in the console, and stale response handlers could set state after the component leaves the DOM.
+- **Root Cause**: The fetch in the `useEffect` lacked cleanup logic. If a fetch was initiated and the overlay was closed before the response completed, the `.then()` and `.catch()` callbacks would still execute, attempting state updates on an unmounted component tree.
+- **Fix**: Wrapped the fetch with an `AbortController` and passed its `signal` to the fetch options. The cleanup function returned from the `useEffect` now calls `controller.abort()` when the effect tears down. The catch handler checks `if (err.name !== 'AbortError')` before setting error state, preventing stale state mutations on unmounted components.
+
+## 31. Sidebar Does Not Extend to Bottom
+- **Visible Symptom**: The sidebar (which contains navigation, filters, and status controls) stops short of the viewport bottom, leaving an awkward gap of background color below it. It doesn't feel like a contiguous visual boundary.
+- **Root Cause**: Multiple conflicting height constraints were stacked in the CSS cascade. The `body` and `#root` elements both used `min-height: 100vh`, which meant they could grow beyond viewport height. The `.app-layout` used `height: 100vh`, creating a disconnect. Additionally, the `body` likely had default browser margins/padding that weren't reset.
+- **Fix**: Established a proper height chain: Set `html { height: 100%; }` and `body { height: 100vh; margin: 0; padding: 0; }` and `#root { height: 100%; }`. This ensures the viewport height flows cleanly from the document root down to the React component tree. The sidebar's `height: 100%;` then stretches to fill the full `.app-body` container as intended. The sidebar now extends seamlessly from the header to the bottom edge of the screen.
+
+

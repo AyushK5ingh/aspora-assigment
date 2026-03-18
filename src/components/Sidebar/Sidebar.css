@@ -96,7 +96,7 @@
   color: var(--primary);
 }
 
-.sidebar__checkbox input[type='radio'] {
+.sidebar__checkbox input[type="radio"] {
   accent-color: var(--primary);
   width: 14px;
   height: 14px;
@@ -136,7 +136,9 @@
   background: var(--surface);
   outline: none;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .sidebar__select:focus {
