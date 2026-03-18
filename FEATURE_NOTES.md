@@ -1,81 +1,171 @@
-# Feature Notes - Search Comments
+# FEATURE_NOTES.md — Search Comments
 
-### What We Built
+## What We Built
+The **Search Comments** feature allows users to search through 500 comments fetched from the JSONPlaceholder API in real time.
 
-The "Search Comments" feature lets users search through 500 comments from JSONPlaceholder API in real-time. It's a fully functional search overlay that responds instantly to typing, highlights matching text, and supports keyboard navigation—all without any external UI libraries.
+It includes:
+- Instant client-side search
+- Highlighted matching text
+- Keyboard navigation support
+- Smooth overlay UX  
+- No external UI or utility libraries
 
-### Why These Decisions?
+---
 
-**1. Smart Data Loading (One-Time Fetch)**
+## Approach & Implementation
 
-Instead of fetching comments every time users open the search modal, we fetch once and keep them in memory. This makes the search feel instant because we're filtering 500 items locally on your device, not making network requests for each keystroke. The comments stay cached for the entire session, so subsequent searches are lightning-fast.
+### 1. Client-Side Data Architecture
+- Comments are fetched **once** when the search overlay opens.
+- Data is cached in component state for the session.
+- Eliminates repeated API calls → **instant search experience**
 
-**2. Debouncing for Smooth Typing**
+---
 
-As you type, the search waits 300ms after you stop before filtering results. This means:
-- No stuttering or lag while typing fast
-- Results update naturally after a brief pause
-- The "Searching..." message appears while you're mid-keystroke, so it feels responsive
+### 2. Performance Optimization
 
-Behind the scenes, we use a simple `useEffect` with `setTimeout`—no external debouncing library needed.
+#### Debouncing
+- Implemented using `useEffect + setTimeout`
+- 300ms delay after typing stops
 
-**3. Smart Rendering with useMemo**
+**Benefits:**
+- Prevents unnecessary filtering on every keystroke  
+- Avoids UI lag  
+- Provides natural typing experience  
 
-The filter operation (checking which comments match your query) only runs when your search term actually changes. We don't re-filter the 500 items on every re-render caused by scrolling or expanding a result. This keeps everything smooth.
+---
 
-**4. True DOM Highlighting (No HTML Injection)**
+#### useMemo for Filtering
+- Search results are derived using `useMemo`
 
-The matched text is highlighted in yellow/bold. We build this purely with React components (`<span>` and `<mark>` tags), not by injecting raw HTML. This is safer (no XSS risk) and plays nicely with React's rendering engine.
+**Why:**
+- Prevents re-filtering on unrelated re-renders (scroll, expand, etc.)
+- Ensures efficient computation over 500 items
 
-**5. Full Keyboard Support**
+---
 
-- **Arrow Up/Down**: Navigate through results (wraps around at top/bottom)
-- **Enter**: Expand/collapse the selected comment to read the full text
-- **Escape**: Close the overlay instantly
+### 3. DOM Highlighting (Safe Rendering)
+- Built a custom `HighlightText` component
+- Uses `<span>` and `<mark>` tags
+- No `dangerouslySetInnerHTML`
 
-The selection stays visible as you navigate, and the focused result auto-scrolls into view.
+**Benefits:**
+- Prevents XSS risks  
+- Works seamlessly with React rendering  
+- Clean and maintainable  
 
-### Smart Recovery from Network Issues
+---
 
-If the API is temporarily down when you first open the search, you just get an error message. Close the overlay and open it again—it clears the error and tries to fetch again. No need to refresh the entire page.
+### 4. Keyboard Accessibility
+Fully supported keyboard navigation:
 
-### Trade-offs We Made
+- **Arrow Up / Down**
+  - Navigate results
+  - Wraps around list boundaries  
 
-- **Single-Session Caching**: The comments dataset doesn't refresh if you close and reopen the overlay. This is fine for static data like JSONPlaceholder, but a real app with live data would need periodic updates or WebSocket support.
+- **Enter**
+  - Expand/collapse selected comment  
 
-- **Simple Substring Matching**: We search by checking if your query appears anywhere in the comment (case-insensitive). For typo-tolerance or fuzzy matching, you'd need a library like Fuse.js.
+- **Escape**
+  - Close overlay instantly  
 
-- **Recursive Highlighting**: Very long comment bodies could theoretically cause performance issues due to how we recursively build the highlight spans. An iterative approach would be more future-proof, but our recursive solution is clean and works great for typical-length comments.
+**Additional:**
+- Auto-scroll into view using `scrollIntoView`
+- Prevents default browser scrolling behavior
 
-### Clean Resource Management
+---
 
-When you close the search overlay while a fetch is still in progress, we cancel the request using `AbortController`. This prevents React errors from stale callbacks trying to update a component that's already unmounted. It's the difference between a clean, professional experience and console warnings.
+### 5. Smart Network Handling
+- Uses **AbortController** to cancel fetch requests if component unmounts
 
-# Feature Notes - Search Comments
+**Prevents:**
+- Memory leaks  
+- React state update warnings  
 
-### Approach & Implementation
+**Error recovery:**
+- If fetch fails → show error  
+- Closing & reopening overlay retries automatically  
 
-The "Search Comments" feature required hitting a public REST endpoint (`JSONPlaceholder /comments`) with 500 records and providing client-side search against the `body` field. Given the "standard React + DOM APIs only" constraint, the solution was built entirely with React hooks and plain CSS without any external headless UI or debouncing libraries.
+---
 
-**Core Decisions:**
+## Why These Decisions?
 
-1. **Client-Side Data Architecture:**
-   - Instead of fetching per-keystroke, the API endpoint is hit *once* when the search overlay is opened (if the list is not already cached). This reduces network latency dramatically since the scope is fixed (500 items). The results are cached in local component state for the lifetime of the application since the overlay is mounted high up in the React DOM.
-   
-2. **Performance (Debouncing & useMemo):**
-   - Implemented a custom debounce pattern using `useEffect` with `setTimeout`/`clearTimeout` hooked to the search input state.
-   - Leveraged `useMemo` to construct the derived `results` array. This prevents running `.filter().toLowerCase()` on 500 items during arbitrary re-renders (like scrolling or expanding items).
+### One-Time Fetch + Caching
+- 500 items is small → ideal for client-side filtering  
+- Eliminates network latency  
+- Makes UI feel **instant**
 
-3. **DOM Highlight Construction:**
-   - To strictly fulfill the constraint of "DOM highlighting without injecting HTML strings (`dangerouslySetInnerHTML`)", a recursive `HighlightText` functional component was built.
-   - It effectively slices strings cleanly around the query boundaries, outputting natural `<span>` and `<mark>` tags recursively.
+---
 
-4. **Keyboard Accessibility:**
-   - Added robust viewport event listeners to trap the `Escape` key effectively.
-   - Arrow-key navigation captures standard DOM focus with `event.preventDefault()` to prevent arbitrary scrolling while keeping the active selection visible via `.scrollIntoView({ block: 'nearest' })`. It correctly wraps the selection around endpoints.
+### Debouncing Instead of Immediate Filtering
+- Improves typing experience  
+- Reduces unnecessary computations  
+- Keeps UI responsive  
 
-### Trade-offs & Limitations
+---
 
-- Local caching without invalidation: Because `JSONPlaceholder /comments` is effectively immutable for our scope, we do not refetch data if the overlay is closed and reopened. For a live backend, periodic polling or WebSocket integration would be needed.
-- Recursive Highlighting: While perfectly capable for an average paragraph in JSONPlaceholder, deeply recursive component calls on exceptionally large bodies could hit recursion limits or degrade React's diffing speed. An iterative parser would be safer in heavy production environments.
-- Highlighting does not overlap: Currently if the highlighted string happens to overlap in some edge case, or ignores complex formatting, it is rudimentary. Given constraints, sticking to pure substring matching is acceptable.
+### No External Libraries
+- Keeps bundle size small  
+- Demonstrates core React + DOM understanding  
+- Maintains full control over behavior  
+
+---
+
+## Trade-offs & Limitations
+
+### 1. Single-Session Caching
+- Data does not refresh after initial fetch  
+- Acceptable for static APIs  
+- Not suitable for live/dynamic data  
+
+**Future fix:**
+- Add polling or WebSocket updates  
+
+---
+
+### 2. Simple Substring Matching
+- Case-insensitive `.includes()` search  
+
+**Limitations:**
+- No fuzzy matching  
+- No typo tolerance  
+
+**Future fix:**
+- Integrate Fuse.js or similar  
+
+---
+
+### 3. Recursive Highlighting
+- Clean implementation but not optimal for very large text  
+
+**Risk:**
+- Deep recursion may affect performance  
+
+**Future fix:**
+- Replace with iterative parsing approach  
+
+---
+
+### 4. Non-overlapping Matches
+- Highlight logic does not handle overlapping patterns  
+- Works well for standard use cases  
+
+---
+
+## Clean Resource Management
+- Fetch cancellation via `AbortController`
+
+**Prevents:**
+- Stale updates  
+- Console warnings  
+- Memory leaks  
+
+---
+
+## Summary
+This feature focuses on:
+- **Performance (debounce + memoization)**
+- **UX (instant results + keyboard navigation)**
+- **Security (no HTML injection)**
+- **Simplicity (no external dependencies)**
+
+A clean, production-ready implementation for moderate-sized datasets.
